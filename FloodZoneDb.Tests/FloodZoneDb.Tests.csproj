@@ -18,4 +18,56 @@
   <ItemGroup>
     <ProjectReference Include="..\FloodZoneDb.Client\FloodZoneDb.Client.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\Izodats_Орешко Волга_28082026 11.4.xlsx"
+             Link="TestData\Izodats_Орешко Волга_28082026 11.4.xlsx"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\FloodZoneCalculator\Domain\ProfilePoint.cs" Link="Domain\ProfilePoint.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionGeometry.cs" Link="Domain\CrossSectionGeometry.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionGeometryBuilder.cs" Link="Domain\CrossSectionGeometryBuilder.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionGeometryCalculationResult.cs" Link="Domain\CrossSectionGeometryCalculationResult.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionGeometryCalculator.cs" Link="Domain\CrossSectionGeometryCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\HydraulicRadiusCalculator.cs" Link="Domain\HydraulicRadiusCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\Educational\EducationalDepthHydraulicCalculator.cs" Link="Domain\Educational\EducationalDepthHydraulicCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\Educational\EducationalDepthHydraulicResult.cs" Link="Domain\Educational\EducationalDepthHydraulicResult.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\Educational\EducationalFullHydraulicCalculator.cs" Link="Domain\Educational\EducationalFullHydraulicCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\Educational\EducationalFullHydraulicResult.cs" Link="Domain\Educational\EducationalFullHydraulicResult.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\Educational\EducationalVelocityComparisonCalculator.cs" Link="Domain\Educational\EducationalVelocityComparisonCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\Educational\EducationalVelocityComparisonResult.cs" Link="Domain\Educational\EducationalVelocityComparisonResult.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Educational\EducationalHydraulicProfileData.cs" Link="Presentation\Educational\EducationalHydraulicProfileData.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Educational\EducationalHydraulicSelectionState.cs" Link="Presentation\Educational\EducationalHydraulicSelectionState.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Educational\EducationalProfileRenderModels.cs" Link="Presentation\Educational\EducationalProfileRenderModels.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Educational\EducationalHydraulicReport.cs" Link="Presentation\Educational\EducationalHydraulicReport.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Educational\EducationalHydraulicSummaryModel.cs" Link="Presentation\Educational\EducationalHydraulicSummaryModel.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Educational\EducationalHydraulicSummarySelectionState.cs" Link="Presentation\Educational\EducationalHydraulicSummarySelectionState.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Educational\EducationalHydraulicSummaryRenderModels.cs" Link="Presentation\Educational\EducationalHydraulicSummaryRenderModels.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\ShearVelocityCalculator.cs" Link="Domain\ShearVelocityCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\DischargeCalculator.cs" Link="Domain\DischargeCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\HydraulicSlopeValidator.cs" Link="Domain\HydraulicSlopeValidator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\GrishaninChezyCalculator.cs" Link="Domain\GrishaninChezyCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\ChezyVelocityCalculator.cs" Link="Domain\ChezyVelocityCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionHydraulicResult.cs" Link="Domain\CrossSectionHydraulicResult.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionHydraulicResultCalculator.cs" Link="Domain\CrossSectionHydraulicResultCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionHydraulicContext.cs" Link="Domain\CrossSectionHydraulicContext.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionSequence.cs" Link="Domain\CrossSectionSequence.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\AdjacentCrossSectionPair.cs" Link="Domain\AdjacentCrossSectionPair.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionAdjacentPairBuilder.cs" Link="Domain\CrossSectionAdjacentPairBuilder.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionLongitudinalGeometry.cs" Link="Domain\CrossSectionLongitudinalGeometry.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\CrossSectionLongitudinalGeometryBuilder.cs" Link="Domain\CrossSectionLongitudinalGeometryBuilder.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\LongitudinalGeometryRatioCalculator.cs" Link="Domain\LongitudinalGeometryRatioCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\HydraulicCalculationInput.cs" Link="Domain\HydraulicCalculationInput.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\MultiCrossSectionHydraulicResult.cs" Link="Domain\MultiCrossSectionHydraulicResult.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\MultiCrossSectionHydraulicResultCalculator.cs" Link="Domain\MultiCrossSectionHydraulicResultCalculator.cs" />
+    <Compile Include="..\FloodZoneCalculator\Domain\HydraulicProfileRenderModel.cs" Link="Domain\HydraulicProfileRenderModel.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Visualization\CrossSectionVisualizationModels.cs" Link="Presentation\Visualization\CrossSectionVisualizationModels.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Visualization\HydraulicVisualizationModelBuilder.cs" Link="Presentation\Visualization\HydraulicVisualizationModelBuilder.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Visualization\CrossSectionProfileRenderer.cs" Link="Presentation\Visualization\CrossSectionProfileRenderer.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Visualization\CrossSectionSelectionModel.cs" Link="Presentation\Visualization\CrossSectionSelectionModel.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Visualization\LongitudinalProfileRenderer.cs" Link="Presentation\Visualization\LongitudinalProfileRenderer.cs" />
+    <Compile Include="..\FloodZoneCalculator\Presentation\Visualization\HydraulicVisualizationState.cs" Link="Presentation\Visualization\HydraulicVisualizationState.cs" />
+  </ItemGroup>
 </Project>

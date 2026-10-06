@@ -15,5 +15,11 @@
     <EmbeddedResource Include="..\FloodZoneDb\Migrations\InitialCreate.sql"
                       Link="Migrations\InitialCreate.sql"
                       LogicalName="FloodZoneDb.Migrations.InitialCreate.sql" />
+    <EmbeddedResource Include="..\FloodZoneDb\Migrations\CreateIsodats.sql"
+                      Link="Migrations\CreateIsodats.sql"
+                      LogicalName="FloodZoneDb.Migrations.CreateIsodats.sql" />
+    <EmbeddedResource Include="..\FloodZoneDb\Migrations\CreateIsodatHydraulicPoints.sql"
+                      Link="Migrations\CreateIsodatHydraulicPoints.sql"
+                      LogicalName="FloodZoneDb.Migrations.CreateIsodatHydraulicPoints.sql" />
   </ItemGroup>
 </Project>

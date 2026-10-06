@@ -57,4 +57,8 @@ public sealed class ObjectProfile
     public string ReservoirUsefulVolumeMlnM3 { get; set; } = "";
     public string RoughnessCoeffN { get; set; } = "";
     public string WaterTemperatureC { get; set; } = "";
+    public string BalanceOwnership { get; set; } = "";
+    public string HydroClass { get; set; } = "";
+    public string ProjectNumber { get; set; } = "";
+    public CalculationInput CalculationInputs { get; set; } = new();
 }

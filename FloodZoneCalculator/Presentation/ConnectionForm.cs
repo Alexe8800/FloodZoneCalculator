@@ -1,4 +1,4 @@
-using FloodZoneCalculator.Infrastructure;
+﻿using FloodZoneCalculator.Infrastructure;
 using FloodZoneDb.Client;
 using System;
 using System.Drawing;
@@ -12,6 +12,7 @@ namespace FloodZoneCalculator.Presentation
         private readonly TextBox _connectionText;
         private readonly Label _status;
         private Button _connectButton = null!;
+        private Button _testButton = null!;
 
         public ConnectionForm()
         {
@@ -32,7 +33,7 @@ namespace FloodZoneCalculator.Presentation
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, Padding = new Padding(18),
-                ColumnCount = 2, RowCount = 4
+                ColumnCount = 2, RowCount = 5
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72));
@@ -49,11 +50,14 @@ namespace FloodZoneCalculator.Presentation
                 Text = "Если базы ещё нет, она будет создана автоматически, затем применится миграция.",
                 Dock = DockStyle.Fill, AutoSize = false, Padding = new Padding(0, 8, 0, 0)
             }, 1, 1);
+            _testButton = new Button { Text = "Тест БД", AutoSize = true, Height = 34 };
+            _testButton.Click += async (s, e) => await TestConnectionAsync();
+            layout.Controls.Add(_testButton, 1, 2);
             _connectButton = new Button { Text = "Подключиться и открыть объекты", AutoSize = true, Height = 34 };
             _connectButton.Click += async (s, e) => await ConnectAsync();
-            layout.Controls.Add(_connectButton, 1, 2);
+            layout.Controls.Add(_connectButton, 1, 3);
             _status = new Label { Text = "Введите строку подключения.", Dock = DockStyle.Fill, ForeColor = Color.DimGray };
-            layout.Controls.Add(_status, 1, 3);
+            layout.Controls.Add(_status, 1, 4);
             Controls.Add(layout);
             Controls.Add(header);
         }
@@ -63,14 +67,21 @@ namespace FloodZoneCalculator.Presentation
             try
             {
                 _connectButton.Enabled = false;
-                _status.Text = "Подключение и применение миграции...";
                 var database = new FloodZoneConnection(_connectionText.Text);
-                await database.EnsureDatabaseAndSchemaAsync();
                 if (!await database.CanConnectAsync())
-                    throw new InvalidOperationException("PostgreSQL не подтвердил подключение.");
+                {
+                    AppLogger.Info("Подключение к БД недоступно — переходим в оффлайн-режим.");
+                    Hide();
+                    using (var objects = new ObjectBrowserForm(database, isOffline: true))
+                        objects.ShowDialog(this);
+                    Show();
+                    return;
+                }
+                _status.Text = "Подключение и применение миграции...";
+                await database.EnsureDatabaseAndSchemaAsync();
                 AppLogger.Info("Подключение к БД и миграция завершены.");
                 Hide();
-                using (var objects = new ObjectBrowserForm(database))
+                using (var objects = new ObjectBrowserForm(database, isOffline: false))
                     objects.ShowDialog(this);
                 Show();
             }
@@ -84,6 +95,38 @@ namespace FloodZoneCalculator.Presentation
             finally
             {
                 _connectButton.Enabled = true;
+            }
+        }
+        private async Task TestConnectionAsync()
+        {
+            try
+            {
+                _testButton.Enabled = false;
+                _status.Text = "Проверка подключения к БД...";
+                var database = new FloodZoneConnection(_connectionText.Text);
+                var result = await database.CanConnectAsync();
+                if (result)
+                {
+                    _status.Text = "Подключение к БД успешно.";
+                    AppLogger.Info("Тест подключения к БД успешен.");
+                    MessageBox.Show(this, "Подключение к PostgreSQL успешно.", "Тест БД", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    _status.Text = "База данных недоступна. Доступен оффлайн-режим.";
+                    AppLogger.Info("Тест подключения к БД неудачен, доступна оффлайн-работа.");
+                    MessageBox.Show(this, "База данных недоступна. Доступен оффлайн-режим: создание объектов и расчёты без сохранения.", "Тест БД", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("Ошибка теста подключения.", ex);
+                _status.Text = "Ошибка: " + ex.Message;
+                MessageBox.Show(this, ex.Message, "Тест БД", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _testButton.Enabled = true;
             }
         }
     }

@@ -1,3 +1,5 @@
+﻿#nullable enable
+
 using FloodZoneCalculator.Application;
 using FloodZoneCalculator.Infrastructure;
 using FloodZoneDb.Client;
@@ -24,6 +26,7 @@ namespace FloodZoneCalculator.Presentation
         private readonly HashSet<ComboBox> _sortingCombos = new HashSet<ComboBox>();
         private readonly HashSet<ComboBox> _selectedCombos = new HashSet<ComboBox>();
         private bool _updatingCombo;
+        private readonly bool _isOffline;
         private readonly ToolStripStatusLabel _statusLabel;
         private readonly PictureBox _image = new PictureBox();
         private string _imagePath = "";
@@ -31,6 +34,7 @@ namespace FloodZoneCalculator.Presentation
         private List<DatabaseObject> _objects = new List<DatabaseObject>();
         private long _selectedObjectId;
         private long _profileLoadVersion;
+        private readonly Dictionary<string, TextBox> _calculationInputFields = new Dictionary<string, TextBox>();
         private static readonly HashSet<string> DecimalFields = new HashSet<string>
         {
             "DesignPowerMw", "AverageAnnualGenerationMkwh", "DamLengthM", "DamMaxHeightM",
@@ -62,8 +66,9 @@ namespace FloodZoneCalculator.Presentation
                 ["equipment"] = "Оборудование"
             };
 
-        public ObjectBrowserForm(FloodZoneConnection database)
+        public ObjectBrowserForm(FloodZoneConnection database, bool isOffline = false)
         {
+            _isOffline = isOffline;
             _database = database;
             Text = "Список объектов";
             Width = 1400;
@@ -113,8 +118,16 @@ namespace FloodZoneCalculator.Presentation
             panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
 
             _searchText.Dock = DockStyle.Fill;
-            _searchText.Text = "";
-            _searchText.TextChanged += (s, e) => RefreshObjectList();
+            if (_isOffline)
+            {
+                _searchText.Text = "Поиск недоступен в оффлайн-режиме";
+                _searchText.ReadOnly = true;
+            }
+            else
+            {
+                _searchText.Text = "";
+                _searchText.TextChanged += (s, e) => RefreshObjectList();
+            }
             panel.Controls.Add(_searchText, 0, 0);
 
             var listBox = new GroupBox { Text = "Список объектов", Dock = DockStyle.Fill, Padding = new Padding(6) };
@@ -134,6 +147,7 @@ namespace FloodZoneCalculator.Presentation
             actions.Controls.Add(MakeButton("＋ Новый", (s, e) => ClearObjectForm()));
             var delete = MakeButton("Удалить", DeleteObjectClick);
             delete.BackColor = Color.FromArgb(220, 53, 69);
+            if (_isOffline) delete.Enabled = false;
             delete.ForeColor = Color.White;
             delete.Name = "deleteObject";
             delete.Enabled = false;
@@ -153,15 +167,18 @@ namespace FloodZoneCalculator.Presentation
             var basic = BuildBasicData();
             var technical = BuildTechnicalData();
             var condition = BuildConditionData();
+            var calculationInputs = BuildCalculationInputs();
             stack.Controls.Add(basic);
             stack.Controls.Add(technical);
             stack.Controls.Add(condition);
+            stack.Controls.Add(calculationInputs);
             var actions = new FlowLayoutPanel { Width = 760, Height = 48, Padding = new Padding(0, 8, 0, 0) };
-            actions.Controls.Add(MakeButton("Сохранить карточку", async (s, e) => await SaveObjectAsync()));
+            var save = MakeButton("Сохранить карточку", async (s, e) => await SaveObjectAsync());
             _calculationButton = MakeButton("Открыть расчёты", OpenCalculationClick);
             _calculationButton.Enabled = false;
             actions.Controls.Add(_calculationButton);
             stack.Controls.Add(actions);
+            if (_isOffline) save.Enabled = false;
             void ResizeCards()
             {
                 var width = Math.Max(760, scroll.ClientSize.Width - 20);
@@ -232,6 +249,35 @@ namespace FloodZoneCalculator.Presentation
             AddText(grid, 1, "Особые отметки", "SpecialMarks", false, 2);
             box.Controls.Add(grid);
             return box;
+        }
+
+        private Control BuildCalculationInputs()
+        {
+            var box = new GroupBox { Text = "Исходные расчётные данные", Width = 780, Height = 300, Padding = new Padding(10) };
+            var grid = NewGrid(2, 6);
+            var fields = new[]
+            {
+                ("N", "N"), ("ReservoirVolumeWv", "Wв"), ("ReservoirDepthHv", "Hв"),
+                ("ReservoirAreaSv", "Sв"), ("ReservoirWidthBv", "Bв"), ("LowerReachDepthHb0", "Hб0"),
+                ("LowerReachWidthBb0", "Bб0"), ("LowerReachVelocityVb0", "Vб0"), ("BreakDepthHr", "Hр"),
+                ("DestructionDegreeEr", "Eр"), ("BreachThresholdP", "P"), ("WaterLevelZv", "Zв")
+            };
+            for (var i = 0; i < fields.Length; i++)
+                AddCalculationInput(grid, i / 2, fields[i].Item2, fields[i].Item1, i % 2);
+            box.Controls.Add(grid);
+            return box;
+        }
+
+        private void AddCalculationInput(TableLayoutPanel grid, int row, string label, string key, int column)
+        {
+            var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(2) };
+            cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+            cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            cell.Controls.Add(new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight }, 0, 0);
+            var input = new TextBox { Dock = DockStyle.Fill };
+            _calculationInputFields[key] = input;
+            cell.Controls.Add(input, 1, 0);
+            grid.Controls.Add(cell, column, row);
         }
 
         private Control BuildRightPanel()
@@ -349,6 +395,13 @@ namespace FloodZoneCalculator.Presentation
 
         private async Task LoadDatabaseInfoAsync()
         {
+            if (_isOffline)
+            {
+                _objects = new List<DatabaseObject>();
+                RefreshObjectList();
+                SetStatus("Оффлайн-режим: база данных недоступна. Создание объектов и расчёт доступны, сохранение и поиск отключены.");
+                return;
+            }
             try
             {
                 _objects = (await _database.LoadObjectsAsync()).ToList();
@@ -432,6 +485,16 @@ namespace FloodZoneCalculator.Presentation
                     property.SetValue(p, control is ComboBox ? NormalizeValue(value) : value);
                 }
             p.ImagePath = _imagePath;
+            p.CalculationInputs = new CalculationInput();
+            foreach (var pair in _calculationInputFields)
+            {
+                var property = typeof(CalculationInput).GetProperty(pair.Key);
+                if (property == null) continue;
+                var text = pair.Value.Text.Trim();
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                try { property.SetValue(p.CalculationInputs, Convert.ChangeType(text, property.PropertyType, CultureInfo.CurrentCulture)); }
+                catch (FormatException) { SetStatus($"Некорректное значение {pair.Key}."); }
+            }
             return p;
         }
 
@@ -451,11 +514,14 @@ namespace FloodZoneCalculator.Presentation
                 SetImage(profile.ImagePath);
                 _imagePath = profile.ImagePath;
             }
-            ValidateFields(true);
         }
-
         private async Task SaveObjectAsync()
         {
+            if (_isOffline)
+            {
+                MessageBox.Show(this, "Сохранение объектов недоступно в оффлайн-режиме.", "Оффлайн-режим", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             try
             {
                 if (!ValidateFields(false))
@@ -483,13 +549,16 @@ namespace FloodZoneCalculator.Presentation
                     await _database.UpdateObjectAsync(_selectedObjectId, type, name);
                 await _database.SaveObjectProfileAsync(_selectedObjectId, ReadProfile());
                 await LoadDatabaseInfoAsync();
-                SetStatus("Карточка объекта сохранена в БД.");
             }
             catch (Exception ex) { AppLogger.Error("Ошибка сохранения объекта.", ex); SetStatus("Ошибка сохранения: " + ex.Message); }
         }
-
         private async void DeleteObjectClick(object? sender, EventArgs e)
         {
+            if (_isOffline)
+            {
+                MessageBox.Show(this, "Удаление объектов недоступно в оффлайн-режиме.", "Оффлайн-режим", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             if (_selectedObjectId <= 0) return;
             if (MessageBox.Show(this, "Удалить выбранный объект и его расчёты?", "Подтверждение",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
@@ -745,3 +814,8 @@ namespace FloodZoneCalculator.Presentation
         private void SetStatus(string text) => _statusLabel.Text = text;
     }
 }
+
+
+
+
+
