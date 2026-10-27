@@ -23,6 +23,14 @@ public class ModernGroupBox : GroupBox
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
     }
 
+    // Групповой заголовок рисуем сами, поэтому не даём базовому GroupBox
+    // дополнительно сдвигать вниз область содержимого под «родную» подпись —
+    // иначе первые строки формы уходят за шапку и обрезаются.
+    public override Rectangle DisplayRectangle =>
+        new Rectangle(Padding.Left, Padding.Top,
+            System.Math.Max(0, ClientSize.Width - Padding.Horizontal),
+            System.Math.Max(0, ClientSize.Height - Padding.Vertical));
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var rect = ClientRectangle;

@@ -64,15 +64,42 @@ public sealed class FloodZoneConnection
         }
     }
 
+    // Проверяет доступность самого сервера PostgreSQL через служебную базу "postgres",
+    // независимо от того, существует ли целевая база. Возвращает false вместо исключения,
+    // чтобы форма подключения могла корректно решить: оффлайн-режим или автосоздание базы.
+    public async Task<bool> CanConnectToServerAsync(CancellationToken cancellationToken = default)
+    {
+        DatabaseLogger.Info("Проверка доступности сервера PostgreSQL.");
+        if (_isOffline || string.IsNullOrWhiteSpace(_connectionString))
+            return false;
+        try
+        {
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString) { Database = "postgres" };
+            await using var connection = new NpgsqlConnection(builder.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            using var command = new NpgsqlCommand("select 1", connection);
+            var result = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) == 1;
+            DatabaseLogger.Info("Проверка доступности сервера завершена: " + result + ".");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            DatabaseLogger.Error("Сервер PostgreSQL недоступен.", ex);
+            return false;
+        }
+    }
+
     public async Task EnsureDatabaseAndSchemaAsync(CancellationToken cancellationToken = default)
         {
             VerifyDatabaseAccess();
-            if (string.IsNullOrWhiteSpace(new NpgsqlConnectionStringBuilder(_connectionString).Database))
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            if (string.IsNullOrWhiteSpace(builder.Database))
             throw new InvalidOperationException("В строке подключения не указана база данных.");
 
-            var databaseName = new NpgsqlConnectionStringBuilder(_connectionString).Database!;
-            new NpgsqlConnectionStringBuilder(_connectionString).Database = "postgres";
-            await using (var admin = new NpgsqlConnection(_connectionString))
+            var databaseName = builder.Database!;
+            // Подключаемся к служебной базе postgres, чтобы создать целевую базу, если её нет.
+            builder.Database = "postgres";
+            await using (var admin = new NpgsqlConnection(builder.ConnectionString))
             {
                 await admin.OpenAsync(cancellationToken);
                 using var exists = new NpgsqlCommand(
@@ -102,6 +129,8 @@ public sealed class FloodZoneConnection
                     updated_at timestamp with time zone not null default now(),
                     constraint uq_calculation_data_object_number unique (object_id, calc_number)
                 );
+                alter table calculation_data
+                    add column if not exists report_conclusions text;
                 """, connection);
             await extra.ExecuteNonQueryAsync(cancellationToken);
             using var profile = new NpgsqlCommand("""
@@ -205,6 +234,7 @@ public sealed class FloodZoneConnection
             IReadOnlyList<(decimal ProvisionPct, decimal FlowM3s)> provision,
             IReadOnlyList<(string UseCategory, decimal SharePct)> balance,
             IReadOnlyList<(short MonthNum, decimal GenerationMkwh)> generation,
+            string? reportConclusions = null,
             CancellationToken cancellationToken = default)
         {
             VerifyDatabaseAccess();
@@ -214,16 +244,19 @@ public sealed class FloodZoneConnection
             await using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
             using var command = new NpgsqlCommand("""
-                insert into calculation_data (object_id, calc_number, source_file, sections_json)
-                values (@object_id, 'flood-zone', @source_file, cast(@sections_json as jsonb))
+                insert into calculation_data (object_id, calc_number, source_file, sections_json, report_conclusions)
+                values (@object_id, 'flood-zone', @source_file, cast(@sections_json as jsonb), @report_conclusions)
                 on conflict (object_id, calc_number) do update set
                     source_file = excluded.source_file,
                     sections_json = excluded.sections_json,
+                    report_conclusions = excluded.report_conclusions,
                     updated_at = now();
                 """, connection);
             command.Parameters.AddWithValue("object_id", objectId);
             command.Parameters.AddWithValue("source_file", (object)sourceFile ?? DBNull.Value);
             command.Parameters.AddWithValue("sections_json", sectionsJson);
+            command.Parameters.AddWithValue("report_conclusions",
+                (object?)reportConclusions ?? (object)DBNull.Value);
             await command.ExecuteNonQueryAsync(cancellationToken);
             using var calculation = new NpgsqlCommand("""
                 insert into calculations (object_id, calc_number, name, mode, status, performed_at)
@@ -283,7 +316,7 @@ public sealed class FloodZoneConnection
             await using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
             using var command = new NpgsqlCommand("""
-                select source_file, sections_json
+                select source_file, sections_json, report_conclusions
                 from calculation_data
                 where object_id = @object_id and calc_number = 'flood-zone'
                 limit 1;
@@ -293,7 +326,8 @@ public sealed class FloodZoneConnection
             if (!await reader.ReadAsync(cancellationToken))
                 return null;
             var source = reader.IsDBNull(0) ? "" : reader.GetString(0);
-            return new SavedCalculation(reader.GetString(1), source);
+            var conclusions = reader.IsDBNull(2) ? "" : reader.GetString(2);
+            return new SavedCalculation(reader.GetString(1), source, conclusions);
         }
 
         private static string ReadEmbeddedSql()
@@ -306,14 +340,16 @@ public sealed class FloodZoneConnection
         }
         public sealed class SavedCalculation
         {
-            public SavedCalculation(string sectionsJson, string sourceFile)
+            public SavedCalculation(string sectionsJson, string sourceFile, string reportConclusions = "")
             {
                 SectionsJson = sectionsJson;
                 SourceFile = sourceFile;
+                ReportConclusions = reportConclusions ?? "";
             }
 
             public string SectionsJson { get; }
             public string SourceFile { get; }
+            public string ReportConclusions { get; }
         }
 
     public async Task<IReadOnlyList<DatabaseObject>> LoadObjectsAsync(

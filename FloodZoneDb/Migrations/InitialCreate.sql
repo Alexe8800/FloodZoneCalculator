@@ -13,7 +13,7 @@ BEGIN
     CREATE TYPE bank_side AS ENUM ('L', 'P');
     CREATE TYPE calc_status AS ENUM ('draft', 'computed', 'approved', 'archived');
     CREATE TYPE object_class AS ENUM ('I', 'II', 'III', 'IV');
-    CREATE TYPE reliability_category AS ENUM ('особо ответственное', 'ответственное', 'пониженное');
+    CREATE TYPE reliability_category AS ENUM ('very_critical', 'critical', 'reduced');
     END IF;
 END $EF$;
 

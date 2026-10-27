@@ -16,7 +16,7 @@ namespace FloodZoneDb.Migrations
                 .Annotation("Npgsql:Enum:bank_side", "L,P")
                 .Annotation("Npgsql:Enum:calc_status", "draft,computed,approved,archived")
                 .Annotation("Npgsql:Enum:object_class", "I,II,III,IV")
-                .Annotation("Npgsql:Enum:reliability_category", "особо ответственное,ответственное,пониженное");
+                .Annotation("Npgsql:Enum:reliability_category", "very_critical,critical,reduced");
 
             migrationBuilder.CreateTable(
                 name: "dam_types",

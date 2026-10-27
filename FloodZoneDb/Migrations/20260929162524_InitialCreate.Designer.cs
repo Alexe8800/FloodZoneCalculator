@@ -26,7 +26,7 @@ namespace FloodZoneDb.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "bank_side", new[] { "L", "P" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "calc_status", new[] { "draft", "computed", "approved", "archived" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "object_class", new[] { "I", "II", "III", "IV" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "reliability_category", new[] { "особо ответственное", "ответственное", "пониженное" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "reliability_category", new[] { "very_critical", "critical", "reduced" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("FloodZoneDb.Domain.Building", b =>

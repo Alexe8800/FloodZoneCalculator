@@ -137,7 +137,7 @@ public static class ModernTheme
             Text = text,
             Height = height,
             AccentColor = primary ? Primary : SurfaceLight,
-            TextColor = primary ? Color.White : TextSub,
+            TextColor = primary ? Color.White : TextMain,
             Cursor = Cursors.Hand,
             Font = FontBold,
         };
@@ -183,13 +183,23 @@ public static class ModernTheme
         grid.DefaultCellStyle.SelectionForeColor = Color.White;
         grid.DefaultCellStyle.Font = FontMain;
         grid.DefaultCellStyle.NullValue = "—";
+        grid.DefaultCellStyle.Padding = new Padding(6, 3, 6, 3);
+
+        grid.AlternatingRowsDefaultCellStyle.BackColor = ShadeColor(Surface, 6);
+        grid.AlternatingRowsDefaultCellStyle.ForeColor = TextMain;
+        grid.AlternatingRowsDefaultCellStyle.SelectionBackColor = Cyan700;
+        grid.AlternatingRowsDefaultCellStyle.SelectionForeColor = Color.White;
 
         grid.ColumnHeadersDefaultCellStyle.BackColor = PrimaryDark;
         grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
         grid.ColumnHeadersDefaultCellStyle.Font = FontBold;
-        grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 4, 6, 4);
+        grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 5, 6, 5);
         grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
         grid.EnableHeadersVisualStyles = false;
+        grid.ColumnHeadersHeight = 34;
+        grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        grid.RowTemplate.Height = 28;
+        grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
 
         grid.GridColor = Border;
         grid.BorderStyle = BorderStyle.None;
@@ -205,6 +215,42 @@ public static class ModernTheme
         tree.ForeColor = TextMain;
         tree.Font = FontMain;
         tree.BorderStyle = BorderStyle.None;
+        tree.HideSelection = false;
+        tree.ItemHeight = 24;
+    }
+
+    /// <summary>Тёмный ComboBox: плоский стиль вместо системного «белого».</summary>
+    public static void ApplyToCombo(ComboBox combo)
+    {
+        combo.FlatStyle = FlatStyle.Flat;
+        combo.BackColor = Surface;
+        combo.ForeColor = TextMain;
+        combo.Font = FontMain;
+    }
+
+    /// <summary>Тёмный TabPage с тонкой акцентной полоской сверху.</summary>
+    public static TabPage MakeTabPage(string text)
+    {
+        var page = new TabPage(text)
+        {
+            BackColor = Panel,
+            ForeColor = TextMain,
+        };
+        page.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Color.FromArgb(60, Primary), 1.5f);
+            e.Graphics.DrawLine(pen, 0, 0, page.ClientRectangle.Width, 0);
+        };
+        return page;
+    }
+
+    /// <summary>Тёмная стандартная TextBox (для мест, где ModernTextBox не подходит).</summary>
+    public static void ApplyToTextBox(TextBox box)
+    {
+        box.BackColor = Surface;
+        box.ForeColor = TextMain;
+        box.BorderStyle = BorderStyle.FixedSingle;
+        box.Font = FontMain;
     }
 }
 

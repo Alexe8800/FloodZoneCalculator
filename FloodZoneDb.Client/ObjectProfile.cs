@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace FloodZoneDb.Client;
 
 public sealed class ObjectProfile
@@ -44,6 +46,7 @@ public sealed class ObjectProfile
     public string Longitude { get; set; } = "";
     public string Address { get; set; } = "";
     public string ImagePath { get; set; } = "";
+    public string ImageBase64 { get; set; } = "";
     public string SchemeImagePath { get; set; } = "";
     public string SchemeImageBase64 { get; set; } = "";
     public string HydraulicProfileImagePath { get; set; } = "";
@@ -61,4 +64,29 @@ public sealed class ObjectProfile
     public string HydroClass { get; set; } = "";
     public string ProjectNumber { get; set; } = "";
     public CalculationInput CalculationInputs { get; set; } = new();
+
+    // Эксплуатационные характеристики по периодам и помесячная выработка (расход/напор/выработка).
+    // Хранятся внутри profile_json (jsonb), поэтому отдельная миграция БД не требуется.
+    public List<OperationPeriodEntry> OperationPeriods { get; set; } = new();
+    public List<MonthlyGenerationEntry> MonthlyGeneration { get; set; } = new();
+}
+
+// Одна строка таблицы эксплуатационных характеристик (значения как в grid, форматирование на UI).
+public sealed class OperationPeriodEntry
+{
+    public string Period { get; set; } = "";
+    public string QAvg { get; set; } = "";
+    public string QMax { get; set; } = "";
+    public string QMin { get; set; } = "";
+    public string Hwl { get; set; } = "";
+    public string Lwl { get; set; } = "";
+}
+
+// Одна строка помесячной выработки: месяц 1..12 + расход/напор/выработка.
+public sealed class MonthlyGenerationEntry
+{
+    public int Month { get; set; }
+    public string Flow { get; set; } = "";
+    public string Head { get; set; } = "";
+    public string Generation { get; set; } = "";
 }

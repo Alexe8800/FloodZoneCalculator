@@ -187,9 +187,9 @@ public sealed class EducationalHydraulicForm : Form
         _sourceTable.AllowUserToResizeRows = false;
         _sourceTable.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         _sourceTable.RowHeadersVisible = false;
-        _sourceTable.Columns.Add("type", "Тип");
+        _sourceTable.Columns.Add("type", "Type");
         _sourceTable.Columns.Add("x", "X — Ri / DistanceM");
-        _sourceTable.Columns.Add("value", "Значение");
+        _sourceTable.Columns.Add("value", "Value");
         _sourceTable.Columns.Add("sourceId", "SourceIsodatId");
         tab.Controls.Add(_sourceTable);
         return tab;

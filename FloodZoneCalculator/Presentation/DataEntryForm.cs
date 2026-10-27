@@ -6,9 +6,11 @@ using FloodZoneDb.Client;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -17,7 +19,7 @@ namespace FloodZoneCalculator.Presentation
     public sealed class ObjectBrowserForm : Form
     {
         private readonly FloodZoneConnection _database;
-        private readonly TextBox _searchText = new TextBox();
+        private readonly ModernTextBox _searchText = new ModernTextBox();
         private readonly TreeView _objectsList = new TreeView();
         private readonly ErrorProvider _errors = new ErrorProvider();
         private readonly Dictionary<string, Control> _fields = new Dictionary<string, Control>();
@@ -30,6 +32,8 @@ namespace FloodZoneCalculator.Presentation
         private readonly ToolStripStatusLabel _statusLabel;
         private readonly PictureBox _image = new PictureBox();
         private string _imagePath = "";
+        private string _imageBase64 = "";
+        private ObjectProfile _loadedProfile = new ObjectProfile();
         private Button _calculationButton = null!;
         private List<DatabaseObject> _objects = new List<DatabaseObject>();
         private long _selectedObjectId;
@@ -70,34 +74,64 @@ namespace FloodZoneCalculator.Presentation
         {
             _isOffline = isOffline;
             _database = database;
-            Text = "Список объектов";
+            ModernTheme.ApplyToForm(this);
+            Text = "Список объектов — FloodZoneCalculator";
             Width = 1400;
             Height = 900;
             MinimumSize = new Size(1100, 700);
             WindowState = FormWindowState.Maximized;
             StartPosition = FormStartPosition.CenterScreen;
-            Font = new Font("Segoe UI", 9F);
+            Font = ModernTheme.FontMain;
 
-            var header = new Label
+            var header = new ThemedPanel
             {
-                Dock = DockStyle.Top, Height = 48,
-                Text = "Список объектов",
-                BackColor = Color.FromArgb(0, 82, 145), ForeColor = Color.White,
-                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
-                Padding = new Padding(16, 10, 0, 0)
+                Dock = DockStyle.Top, Height = 58,
+                BackColor = ModernTheme.Background,
             };
-            var statusStrip = new StatusStrip();
-            _statusLabel = new ToolStripStatusLabel("Загрузка объектов...") { Spring = true };
+            header.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                var rect = header.ClientRectangle;
+                using var grad = ModernTheme.Gradient(rect, Color.FromArgb(8, 47, 73), ModernTheme.PrimaryDark,
+                    LinearGradientOrientation.LeftToRight);
+                g.FillRectangle(grad, rect);
+                using var accent = new Pen(Color.FromArgb(120, 34, 211, 238), 2f);
+                g.DrawLine(accent, rect.Left, rect.Bottom - 1, rect.Right, rect.Bottom - 1);
+                using var titleBrush = new SolidBrush(Color.White);
+                var titleArea = new RectangleF(18, 0, rect.Width - 36, rect.Height);
+                g.DrawString("Список объектов", ModernTheme.FontSubHeading, titleBrush, titleArea,
+                    new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near });
+                if (_isOffline)
+                {
+                    using var offBrush = new SolidBrush(ModernTheme.AccentLight);
+                    var offArea = new RectangleF(rect.Width - 150, 0, 132, rect.Height);
+                    g.DrawString("Оффлайн-режим", ModernTheme.FontSmall, offBrush, offArea,
+                        new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Far });
+                }
+            };
+            var statusStrip = new StatusStrip
+            {
+                BackColor = ModernTheme.Panel,
+                ForeColor = ModernTheme.TextSub,
+                SizingGrip = false,
+            };
+            statusStrip.Paint += (s, e) =>
+            {
+                using var pen = new Pen(Color.FromArgb(50, 6, 182, 212), 1f);
+                e.Graphics.DrawLine(pen, 0, 0, statusStrip.Width, 0);
+            };
+            _statusLabel = new ToolStripStatusLabel("Загрузка объектов...") { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
             statusStrip.Items.Add(_statusLabel);
 
             var layout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, Padding = new Padding(10),
-                ColumnCount = 3, RowCount = 1
+                Dock = DockStyle.Fill, Padding = new Padding(12),
+                ColumnCount = 3, RowCount = 1,
+                BackColor = ModernTheme.Background,
             };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 255));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 265));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 370));
 
             layout.Controls.Add(BuildLeftPanel(), 0, 0);
             layout.Controls.Add(BuildCenterPanel(), 1, 0);
@@ -128,12 +162,14 @@ namespace FloodZoneCalculator.Presentation
                 _searchText.Text = "";
                 _searchText.TextChanged += (s, e) => RefreshObjectList();
             }
+            _searchText.Placeholder = "Поиск по названию...";
             panel.Controls.Add(_searchText, 0, 0);
 
-            var listBox = new GroupBox { Text = "Список объектов", Dock = DockStyle.Fill, Padding = new Padding(6) };
+            var listBox = new ModernGroupBox { Text = "Список объектов", Dock = DockStyle.Fill, Padding = new Padding(12, 34, 12, 12) };
             _objectsList.Dock = DockStyle.Fill;
             _objectsList.AfterSelect += (s, e) => SelectListObject();
             listBox.Controls.Add(_objectsList);
+            ModernTheme.ApplyToTree(_objectsList);
             panel.Controls.Add(listBox, 0, 1);
 
             var nav = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
@@ -143,12 +179,12 @@ namespace FloodZoneCalculator.Presentation
             nav.Controls.Add(MakeButton("→", (s, e) => MoveSelection(1)), 1, 0);
             panel.Controls.Add(nav, 0, 2);
 
-            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 5, 0, 0) };
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 5, 0, 0), BackColor = Color.Transparent };
             actions.Controls.Add(MakeButton("＋ Новый", (s, e) => ClearObjectForm()));
             var delete = MakeButton("Удалить", DeleteObjectClick);
-            delete.BackColor = Color.FromArgb(220, 53, 69);
+            if (delete is ModernButton modernDelete)
+                modernDelete.AccentColor = ModernTheme.Error;
             if (_isOffline) delete.Enabled = false;
-            delete.ForeColor = Color.White;
             delete.Name = "deleteObject";
             delete.Enabled = false;
             actions.Controls.Add(delete);
@@ -172,10 +208,10 @@ namespace FloodZoneCalculator.Presentation
             stack.Controls.Add(technical);
             stack.Controls.Add(condition);
             stack.Controls.Add(calculationInputs);
-            var actions = new FlowLayoutPanel { Width = 760, Height = 48, Padding = new Padding(0, 8, 0, 0) };
+            var actions = new FlowLayoutPanel { Width = 760, Height = 52, Padding = new Padding(0, 8, 0, 0), BackColor = Color.Transparent };
             var save = MakeButton("Сохранить карточку", async (s, e) => await SaveObjectAsync());
-            _calculationButton = MakeButton("Открыть расчёты", OpenCalculationClick);
-            _calculationButton.Enabled = false;
+            _calculationButton = MakeButton("Открыть расчёты", (s, e) => OpenCalculationClick());
+            _calculationButton.Enabled = !_isOffline;
             actions.Controls.Add(_calculationButton);
             stack.Controls.Add(actions);
             if (_isOffline) save.Enabled = false;
@@ -195,72 +231,72 @@ namespace FloodZoneCalculator.Presentation
 
         private Control BuildBasicData()
         {
-            var box = new GroupBox { Text = "Основные данные", Width = 780, Height = 355, Padding = new Padding(10) };
+            var box = new ModernGroupBox { Text = "Основные данные", Width = 780, Height = 375, Padding = new Padding(14, 40, 14, 14) };
             var grid = NewGrid(2, 9);
-            AddCombo(grid, 0, "Тип объекта", "TypeCode", ObjectTypeNames.Values);
-            AddText(grid, 1, "Наименование", "Name");
-            AddCombo(grid, 2, "Река", "River", new[] { "Волга", "Кама", "Дон", "Днепр", "Обь", "Енисей" });
-            AddText(grid, 3, "Назначение", "Purpose", true);
-            AddText(grid, 4, "Дата ввода в эксплуатацию", "CommissioningDate");
-            AddCombo(grid, 5, "Собственник", "Owner", new[] { "АО «Волжская ГЭС»", "ПАО «РусГидро»" });
-            AddCombo(grid, 6, "Балансовая принадлежность", "BalanceAffiliation", new[] { "Энергетика", "Водное хозяйство", "Муниципальная", "Федеральная" });
-            AddText(grid, 7, "Ответственный", "ResponsiblePerson");
-            AddCombo(grid, 8, "Статус", "Status", Statuses);
-            AddCombo(grid, 0, "Класс ГТС", "GtsClass", new[] { "I (высший)", "II", "III", "IV" }, 1);
-            AddCombo(grid, 1, "Категория надёжности", "ReliabilityCategory", new[] { "Особо ответственное", "Ответственное", "Обычное" }, 1);
-            AddCombo(grid, 2, "Проектная организация", "DesignOrganization", new[] { "Гидропроект", "Ленгидропроект" }, 1);
-            AddText(grid, 3, "Проектный шифр", "ProjectCode", false, 1);
-            AddText(grid, 4, "Проектная мощность, МВт", "DesignPowerMw", false, 1);
-            AddText(grid, 5, "Количество агрегатов", "UnitsCount", false, 1);
-            AddText(grid, 6, "Среднегодовая выработка, млн кВт·ч", "AverageAnnualGenerationMkwh", false, 1);
+            AddCombo(grid, 0, "Object type", "TypeCode", ObjectTypeNames.Values);
+            AddText(grid, 1, "Name", "Name");
+            AddCombo(grid, 2, "River", "River", new[] { "Волга", "Кама", "Дон", "Днепр", "Обь", "Енисей" });
+            AddText(grid, 3, "Purpose", "Purpose", true);
+            AddText(grid, 4, "Commissioning date", "CommissioningDate");
+            AddCombo(grid, 5, "Owner", "Owner", new[] { "АО «Волжская ГЭС»", "ПАО «РусГидро»" });
+            AddCombo(grid, 6, "Balance affiliation", "BalanceAffiliation", new[] { "Энергетика", "Водное хозяйство", "Муниципальная", "Федеральная" });
+            AddText(grid, 7, "Responsible person", "ResponsiblePerson");
+            AddCombo(grid, 8, "Status", "Status", Statuses);
+            AddCombo(grid, 0, "GTS class", "GtsClass", new[] { "I (высший)", "II", "III", "IV" }, 1);
+            AddCombo(grid, 1, "Reliability category", "ReliabilityCategory", new[] { "Особо ответственное", "Ответственное", "Обычное" }, 1);
+            AddCombo(grid, 2, "Design organization", "DesignOrganization", new[] { "Гидропроект", "Ленгидропроект" }, 1);
+            AddText(grid, 3, "Project code", "ProjectCode", false, 1);
+            AddText(grid, 4, "Design power, MW", "DesignPowerMw", false, 1);
+            AddText(grid, 5, "Units count", "UnitsCount", false, 1);
+            AddText(grid, 6, "Average annual generation, mln kWh", "AverageAnnualGenerationMkwh", false, 1);
             box.Controls.Add(grid);
             return box;
         }
 
         private Control BuildTechnicalData()
         {
-            var box = new GroupBox { Text = "Технические характеристики", Width = 780, Height = 285, Padding = new Padding(10) };
+            var box = new ModernGroupBox { Text = "Технические характеристики", Width = 780, Height = 305, Padding = new Padding(14, 40, 14, 14) };
             var grid = NewGrid(2, 6);
-            AddCombo(grid, 0, "Тип плотины", "DamType", new[] { "Бетонная", "Земляная", "Каменно-земляная" });
-            AddCombo(grid, 0, "Тип водосброса", "SpillwayType", new[] { "Поверхностный", "Глубинный", "Сифонный" }, 1);
-            AddText(grid, 1, "Длина плотины, м", "DamLengthM");
-            AddText(grid, 1, "Макс. пропускная способность, м³/с", "SpillwayCapacityM3s", false, 1);
-            AddText(grid, 2, "Максимальная высота плотины, м", "DamMaxHeightM");
-            AddText(grid, 2, "Количество водосбросных отверстий", "SpillwayOpeningsCount", false, 1);
-            AddText(grid, 3, "Нормальный подпорный уровень, м", "NormalHeadwaterM");
-            AddCombo(grid, 3, "Тип турбин", "TurbineType", new[] { "Каплан", "Френсис", "Пропеллерная" }, 1);
-            AddText(grid, 4, "Минимальный уровень воды, м", "MinWaterLevelM");
-            AddCombo(grid, 4, "Тип генераторов", "GeneratorType", new[] { "Синхронные", "Асинхронные" }, 1);
-            AddText(grid, 5, "Объём водохранилища, млн м³", "ReservoirVolumeMlnM3");
-            AddText(grid, 5, "Напряжение, кВ", "VoltageKv", false, 1);
+            AddCombo(grid, 0, "Dam type", "DamType", new[] { "Бетонная", "Земляная", "Каменно-земляная" });
+            AddCombo(grid, 0, "Spillway type", "SpillwayType", new[] { "Поверхностный", "Глубинный", "Сифонный" }, 1);
+            AddText(grid, 1, "Dam length, m", "DamLengthM");
+            AddText(grid, 1, "Max capacity, m³/s", "SpillwayCapacityM3s", false, 1);
+            AddText(grid, 2, "Max dam height, m", "DamMaxHeightM");
+            AddText(grid, 2, "Spillway opening count", "SpillwayOpeningsCount", false, 1);
+            AddText(grid, 3, "Normal headwater level, m", "NormalHeadwaterM");
+            AddCombo(grid, 3, "Turbine type", "TurbineType", new[] { "Каплан", "Френсис", "Пропеллерная" }, 1);
+            AddText(grid, 4, "Min water level, m", "MinWaterLevelM");
+            AddCombo(grid, 4, "Generator type", "GeneratorType", new[] { "Синхронные", "Асинхронные" }, 1);
+            AddText(grid, 5, "Reservoir volume, mln m³", "ReservoirVolumeMlnM3");
+            AddText(grid, 5, "Voltage, kV", "VoltageKv", false, 1);
             box.Controls.Add(grid);
             return box;
         }
 
         private Control BuildConditionData()
         {
-            var box = new GroupBox { Text = "Состояние объекта", Width = 780, Height = 170, Padding = new Padding(10) };
+            var box = new ModernGroupBox { Text = "Состояние объекта", Width = 780, Height = 190, Padding = new Padding(14, 40, 14, 14) };
             var grid = NewGrid(3, 2);
-            AddText(grid, 0, "Физический износ, %", "PhysicalWearPct");
-            AddCombo(grid, 0, "Техническое состояние", "TechnicalCondition", new[] { "Хорошее", "Удовлетворительное", "Неудовлетворительное", "Аварийное" }, 1);
-            AddText(grid, 0, "Последний осмотр", "LastInspectionDate", false, 2);
-            AddText(grid, 1, "Следующий осмотр", "NextInspectionDate");
-            AddCombo(grid, 1, "Аварийность", "AccidentRate", new[] { "Отсутствует", "Низкая", "Средняя", "Высокая" }, 1);
-            AddText(grid, 1, "Особые отметки", "SpecialMarks", false, 2);
+            AddText(grid, 0, "Physical wear, %", "PhysicalWearPct");
+            AddCombo(grid, 0, "Technical condition", "TechnicalCondition", new[] { "Хорошее", "Удовлетворительное", "Неудовлетворительное", "Аварийное" }, 1);
+            AddText(grid, 0, "Last inspection", "LastInspectionDate", false, 2);
+            AddText(grid, 1, "Next inspection", "NextInspectionDate");
+            AddCombo(grid, 1, "Accident risk", "AccidentRate", new[] { "Отсутствует", "Низкая", "Средняя", "Высокая" }, 1);
+            AddText(grid, 1, "Special notes", "SpecialMarks", false, 2);
             box.Controls.Add(grid);
             return box;
         }
 
         private Control BuildCalculationInputs()
         {
-            var box = new GroupBox { Text = "Исходные расчётные данные", Width = 780, Height = 300, Padding = new Padding(10) };
+            var box = new ModernGroupBox { Text = "Исходные данные для расчёта", Width = 780, Height = 320, Padding = new Padding(14, 40, 14, 14) };
             var grid = NewGrid(2, 6);
             var fields = new[]
             {
-                ("N", "N"), ("ReservoirVolumeWv", "Wв"), ("ReservoirDepthHv", "Hв"),
-                ("ReservoirAreaSv", "Sв"), ("ReservoirWidthBv", "Bв"), ("LowerReachDepthHb0", "Hб0"),
-                ("LowerReachWidthBb0", "Bб0"), ("LowerReachVelocityVb0", "Vб0"), ("BreakDepthHr", "Hр"),
-                ("DestructionDegreeEr", "Eр"), ("BreachThresholdP", "P"), ("WaterLevelZv", "Zв")
+                ("N", "N"), ("ReservoirVolumeWv", "Wv"), ("ReservoirDepthHv", "Hv"),
+                ("ReservoirAreaSv", "Sv"), ("ReservoirWidthBv", "Bv"), ("LowerReachDepthHb0", "Hb0"),
+                ("LowerReachWidthBb0", "Bb0"), ("LowerReachVelocityVb0", "Vb0"), ("BreakDepthHr", "Hr"),
+                ("DestructionDegreeEr", "Er"), ("BreachThresholdP", "P"), ("WaterLevelZv", "Zv")
             };
             for (var i = 0; i < fields.Length; i++)
                 AddCalculationInput(grid, i / 2, fields[i].Item2, fields[i].Item1, i % 2);
@@ -270,11 +306,11 @@ namespace FloodZoneCalculator.Presentation
 
         private void AddCalculationInput(TableLayoutPanel grid, int row, string label, string key, int column)
         {
-            var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(2) };
+            var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(2), BackColor = Color.Transparent };
             cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
             cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
-            cell.Controls.Add(new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight }, 0, 0);
-            var input = new TextBox { Dock = DockStyle.Fill };
+            cell.Controls.Add(new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = ModernTheme.TextSub, BackColor = Color.Transparent }, 0, 0);
+            var input = new ModernTextBox { Dock = DockStyle.Fill, Height = 30 };
             _calculationInputFields[key] = input;
             cell.Controls.Add(input, 1, 0);
             grid.Controls.Add(cell, column, row);
@@ -287,27 +323,37 @@ namespace FloodZoneCalculator.Presentation
             panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 210));
             panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            var imageBox = new GroupBox { Text = "Изображение объекта", Dock = DockStyle.Fill };
+            var imageBox = new ModernGroupBox { Text = "Изображение объекта", Dock = DockStyle.Fill, Padding = new Padding(12, 36, 12, 12) };
+            var imagePanel = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
+            imagePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            imagePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             _image.Dock = DockStyle.Fill;
             _image.SizeMode = PictureBoxSizeMode.Zoom;
             _image.BackColor = Color.WhiteSmoke;
             _image.BorderStyle = BorderStyle.FixedSingle;
             _image.DoubleClick += (s, e) => ChooseImage();
-            imageBox.Controls.Add(_image);
+            var addImageButton = ModernTheme.MakeButton("Добавить изображение", primary: false, height: 32);
+            addImageButton.Dock = DockStyle.Fill;
+            addImageButton.Margin = new Padding(3, 4, 3, 3);
+            addImageButton.AutoSize = false;
+            addImageButton.Click += (s, e) => ChooseImage();
+            imagePanel.Controls.Add(_image, 0, 0);
+            imagePanel.Controls.Add(addImageButton, 0, 1);
+            imageBox.Controls.Add(imagePanel);
             panel.Controls.Add(imageBox, 0, 0);
 
-            var location = new GroupBox { Text = "Местоположение", Dock = DockStyle.Fill, Padding = new Padding(8) };
+            var location = new ModernGroupBox { Text = "Расположение", Dock = DockStyle.Fill, Padding = new Padding(12, 36, 12, 12) };
             var locationGrid = NewGrid(1, 5);
-            AddText(locationGrid, 0, "Субъект РФ", "SubjectRf");
-            AddText(locationGrid, 1, "Район", "District");
-            AddText(locationGrid, 2, "Адрес", "Address", true);
-            AddText(locationGrid, 3, "Широта", "Latitude");
-            AddText(locationGrid, 4, "Долгота", "Longitude");
+            AddText(locationGrid, 0, "RF subject", "SubjectRf");
+            AddText(locationGrid, 1, "District", "District");
+            AddText(locationGrid, 2, "Address", "Address", true);
+            AddText(locationGrid, 3, "Latitude", "Latitude");
+            AddText(locationGrid, 4, "Longitude", "Longitude");
             location.Controls.Add(locationGrid);
             panel.Controls.Add(location, 0, 1);
 
-            var notes = new GroupBox { Text = "Примечания", Dock = DockStyle.Fill, Padding = new Padding(8) };
-            var remarks = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
+            var notes = new ModernGroupBox { Text = "Примечания", Dock = DockStyle.Fill, Padding = new Padding(12, 36, 12, 12) };
+            var remarks = new ModernTextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
             _fields["Remarks"] = remarks;
             notes.Controls.Add(remarks);
             panel.Controls.Add(notes, 0, 2);
@@ -324,7 +370,7 @@ namespace FloodZoneCalculator.Presentation
 
         private void AddText(TableLayoutPanel grid, int row, string label, string key, bool multiline = false, int column = 0)
         {
-            var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(2) };
+            var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(2), BackColor = Color.Transparent };
             cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
             cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
             Control input;
@@ -333,19 +379,26 @@ namespace FloodZoneCalculator.Presentation
                 input = new DateTimePicker
                 {
                     Dock = DockStyle.Fill, Format = DateTimePickerFormat.Custom,
-                    CustomFormat = "dd.MM.yyyy", ShowCheckBox = true, Checked = false
+                    CustomFormat = "dd.MM.yyyy", ShowCheckBox = true, Checked = false,
+                    BackColor = ModernTheme.Surface, ForeColor = ModernTheme.TextMain,
+                    Font = ModernTheme.FontMain,
                 };
             }
             else
             {
-                input = new TextBox { Dock = DockStyle.Fill, Multiline = multiline, ScrollBars = multiline ? ScrollBars.Vertical : ScrollBars.None };
+                input = new ModernTextBox { Dock = DockStyle.Fill, Multiline = multiline, ScrollBars = multiline ? ScrollBars.Vertical : ScrollBars.None };
             }
+            input.TextChanged += (s, e) => SetInvalidHighlight(input, false);
+            if (input is DateTimePicker inputPicker)
+                inputPicker.ValueChanged += (s, e) => SetInvalidHighlight(input, false);
             cell.Controls.Add(new Label
             {
                 Text = label,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleRight,
-                AutoEllipsis = true
+                AutoEllipsis = true,
+                ForeColor = ModernTheme.TextSub,
+                BackColor = Color.Transparent
             }, 0, 0);
             cell.Controls.Add(input, 1, 0);
             _fields[key] = input;
@@ -354,10 +407,12 @@ namespace FloodZoneCalculator.Presentation
 
         private void AddCombo(TableLayoutPanel grid, int row, string label, string key, IEnumerable<string> items, int column = 0)
         {
-            var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(2) };
+            var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(2), BackColor = Color.Transparent };
             cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
             cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
             var combo = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown };
+            ModernTheme.ApplyToCombo(combo);
+            combo.TextChanged += (s, e) => SetInvalidHighlight(combo, false);
             var catalog = items.Select(NormalizeValue).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             combo.Items.AddRange(catalog.Cast<object>().ToArray());
             _builtInComboValues[combo] = new HashSet<string>(
@@ -379,7 +434,9 @@ namespace FloodZoneCalculator.Presentation
                 Text = label,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleRight,
-                AutoEllipsis = true
+                AutoEllipsis = true,
+                ForeColor = ModernTheme.TextSub,
+                BackColor = Color.Transparent
             }, 0, 0);
             cell.Controls.Add(combo, 1, 0);
             _fields[key] = combo;
@@ -388,7 +445,8 @@ namespace FloodZoneCalculator.Presentation
 
         private static Button MakeButton(string text, EventHandler handler)
         {
-            var button = new Button { Text = text, AutoSize = true, Height = 32, Padding = new Padding(8, 0, 8, 0) };
+            var button = ModernTheme.MakeButton(text, primary: true, height: 34);
+            button.AutoSize = true;
             button.Click += handler;
             return button;
         }
@@ -477,7 +535,7 @@ namespace FloodZoneCalculator.Presentation
 
         private ObjectProfile ReadProfile()
         {
-            var p = new ObjectProfile();
+            var p = CloneProfile(_loadedProfile);
             foreach (var property in typeof(ObjectProfile).GetProperties())
                 if (_fields.TryGetValue(property.Name, out var control))
                 {
@@ -485,6 +543,7 @@ namespace FloodZoneCalculator.Presentation
                     property.SetValue(p, control is ComboBox ? NormalizeValue(value) : value);
                 }
             p.ImagePath = _imagePath;
+            p.ImageBase64 = _imageBase64;
             p.CalculationInputs = new CalculationInput();
             foreach (var pair in _calculationInputFields)
             {
@@ -498,8 +557,20 @@ namespace FloodZoneCalculator.Presentation
             return p;
         }
 
+        private static ObjectProfile CloneProfile(ObjectProfile source)
+        {
+            if (source == null) return new ObjectProfile();
+            try
+            {
+                return JsonSerializer.Deserialize<ObjectProfile>(JsonSerializer.Serialize(source))
+                    ?? new ObjectProfile();
+            }
+            catch { return new ObjectProfile(); }
+        }
+
         private void ApplyProfile(ObjectProfile profile)
         {
+            _loadedProfile = profile ?? new ObjectProfile();
             ClearImage();
             foreach (var property in typeof(ObjectProfile).GetProperties())
                 if (_fields.TryGetValue(property.Name, out var control))
@@ -509,10 +580,33 @@ namespace FloodZoneCalculator.Presentation
                             Convert.ToString(property.GetValue(profile)) ?? "");
                     SetControlText(control, Convert.ToString(property.GetValue(profile)) ?? "");
                 }
-            if (!string.IsNullOrWhiteSpace(profile.ImagePath) && File.Exists(profile.ImagePath))
+            // Поля группы «Input calculation data» хранятся в отдельном словаре _calculationInputFields
+            // и не подпадают под рефлекссию по ObjectProfile — заполняем их явно из profile.CalculationInputs,
+            // иначе при повторном сохранении ReadProfile перезапишет расчётные данные пустотой.
+            var ci = _loadedProfile.CalculationInputs ?? new CalculationInput();
+            foreach (var pair in _calculationInputFields)
             {
-                SetImage(profile.ImagePath);
-                _imagePath = profile.ImagePath;
+                var property = typeof(CalculationInput).GetProperty(pair.Key);
+                pair.Value.Text = property == null
+                    ? ""
+                    : Convert.ToString(property.GetValue(ci)) ?? "";
+            }
+            if (!string.IsNullOrWhiteSpace(_loadedProfile.ImageBase64))
+            {
+                try
+                {
+                    using var stream = new MemoryStream(Convert.FromBase64String(_loadedProfile.ImageBase64));
+                    using var source = Image.FromStream(stream);
+                    _image.Image = new Bitmap(source);
+                    _imagePath = _loadedProfile.ImagePath;
+                    _imageBase64 = _loadedProfile.ImageBase64;
+                }
+                catch (Exception ex) { AppLogger.Error("Не удалось загрузить изображение объекта.", ex); }
+            }
+            else if (!string.IsNullOrWhiteSpace(_loadedProfile.ImagePath) && File.Exists(_loadedProfile.ImagePath))
+            {
+                SetImage(_loadedProfile.ImagePath);
+                _imagePath = _loadedProfile.ImagePath;
             }
         }
         private async Task SaveObjectAsync()
@@ -570,11 +664,12 @@ namespace FloodZoneCalculator.Presentation
         {
             _selectedObjectId = 0;
             foreach (var control in _fields.Values) SetControlText(control, "");
+            foreach (var input in _calculationInputFields.Values) input.Text = "";
             SetField("TypeCode", ObjectTypeNames["hydro_node"]);
             SetField("Status", Statuses[0]);
             ClearImage();
             _imagePath = "";
-            _calculationButton.Enabled = false;
+            _calculationButton.Enabled = !_isOffline;
             EnableDelete(false);
             _objectsList.SelectedNode = null;
             SetStatus("Введите данные нового объекта.");
@@ -587,6 +682,12 @@ namespace FloodZoneCalculator.Presentation
             {
                 SetImage(dialog.FileName);
                 _imagePath = dialog.FileName;
+                try { _imageBase64 = Convert.ToBase64String(File.ReadAllBytes(dialog.FileName)); }
+                catch (Exception ex)
+                {
+                    _imageBase64 = "";
+                    AppLogger.Error("Не удалось прочитать выбранное изображение объекта.", ex);
+                }
             }
         }
 
@@ -717,11 +818,21 @@ namespace FloodZoneCalculator.Presentation
             _image.Image = null;
             previous?.Dispose();
             _imagePath = "";
+            _imageBase64 = "";
         }
 
-        private bool ValidateFields(bool clearInvalid)
+        private static void SetInvalidHighlight(Control control, bool invalid)
+        {
+            if (control is TextBox || control is ComboBox || control is DateTimePicker)
+                control.BackColor = invalid
+                    ? Color.FromArgb(96, 66, 14)
+                    : ModernTheme.Surface;
+        }
+
+        private bool ValidateFields(bool clearInvalid, bool reportInvalid = false)
             {
                 var valid = true;
+                Control? firstInvalid = null;
                 foreach (var pair in _fields)
                 {
                     var key = pair.Key;
@@ -755,21 +866,47 @@ namespace FloodZoneCalculator.Presentation
                         error = "Долгота должна быть от -180 до 180.";
 
                     _errors.SetError(control, error);
+                    SetInvalidHighlight(control, error.Length > 0);
                     if (error.Length > 0)
                     {
                         valid = false;
+                        if (firstInvalid == null) firstInvalid = control;
                         if (clearInvalid && !(key == "TypeCode" || key == "Name"))
                             SetControlText(control, "");
                     }
                 }
+                if (!valid && firstInvalid != null)
+                {
+                    try { firstInvalid.Focus(); } catch { }
+                    if (reportInvalid)
+                        MessageBox.Show(this, "Заполните обязательные поля, выделенные жёлтым.",
+                            "Проверка данных", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
                 return valid;
             }
 
-        private void OpenCalculationClick(object? sender, EventArgs e)
+        private async void OpenCalculationClick()
         {
+            if (_isOffline)
+            {
+                MessageBox.Show(this, "Расчёт недоступен в оффлайн-режиме.", "Оффлайн-режим",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (!ValidateFields(false, reportInvalid: true))
+            {
+                SetStatus("Заполните обязательные поля перед открытием расчётов.");
+                return;
+            }
+            // Сохраняем введённые/изменённые данные объекта (новый или уже существующий),
+            // чтобы окно расчёта открывалось уже по актуальным значениям из БД.
+            await SaveObjectAsync();
+            if (_selectedObjectId <= 0)
+                return;
             using var calculation = new CalculationForm(_selectedObjectId, _database);
             Hide();
             try { calculation.ShowDialog(this); } finally { Show(); }
+            await LoadSelectedProfileAsync(_selectedObjectId);
         }
 
         private void EnableDelete(bool enabled)

@@ -14,9 +14,9 @@ public enum ObjectClass
 [PgName("reliability_category")]
 public enum ReliabilityCategory
 {
-    [PgName("особо ответственное")] VeryCritical = 1,
-    [PgName("ответственное")] Critical = 2,
-    [PgName("пониженное")] Low = 3
+    [PgName("very_critical")] VeryCritical = 1,
+    [PgName("critical")] Critical = 2,
+    [PgName("reduced")] Low = 3
 }
 
 [PgName("bank_side")]

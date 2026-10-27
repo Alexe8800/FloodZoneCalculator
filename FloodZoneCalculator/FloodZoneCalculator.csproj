@@ -10,6 +10,7 @@
     <AssemblyName>FloodZoneCalculator</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <LangVersion>latest</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
@@ -245,6 +246,43 @@
     <Compile Include="Presentation\MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Presentation\MainForm.Ui.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.Drawing.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.Charts.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.Export.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\ChartExportForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\ReportExport\ReportExport.cs" />
+    <Compile Include="Presentation\MainForm.Data.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.Calculation.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.Images.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.Sections.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.Analytics.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.AnalyticsMore.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Presentation\MainForm.AnalyticsProfiles.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Presentation\ModernTheme.cs" />
     <Compile Include="Presentation\ModernButton.cs" />
     <Compile Include="Presentation\ModernTabControl.cs" />
@@ -291,6 +329,7 @@
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
     <None Include="OpenTK.dll.config" />
+    <None Include="app.manifest" />
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
