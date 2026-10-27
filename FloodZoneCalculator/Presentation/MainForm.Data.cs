@@ -303,14 +303,18 @@ namespace FloodZoneCalculator.Presentation
             {
                 for (var i = 0; i < _flowProvisionGrid.Rows.Count; i++)
                 {
-                    if (!hasFlows)
-                    {
-                        _flowProvisionGrid.Rows[i].Cells[1].Value = "";
+                    var flowCell = _flowProvisionGrid.Rows[i].Cells[1];
+                    // Никогда не перезаписываем и не очищаем уже введённый расход —
+                    // иначе ручные (и загруженные из БД) значения «кривой обеспеченности»
+                    // сбрасываются при сохранении/пересчёте/повторном открытии.
+                    // Автоподстановка из Min/Max заполняет только пустые ячейки.
+                    if (!string.IsNullOrWhiteSpace(Convert.ToString(flowCell.Value)))
                         continue;
-                    }
+                    if (!hasFlows)
+                        continue;
                     var probability = ReadCellNumber(_flowProvisionGrid.Rows[i].Cells[0].Value);
                     var factor = 1 - Math.Min(1, Math.Max(0, probability / 100));
-                    _flowProvisionGrid.Rows[i].Cells[1].Value = (qMin + (qMax - qMin) * factor).ToString("N2");
+                    flowCell.Value = (qMin + (qMax - qMin) * factor).ToString("N2");
                 }
             }
 
